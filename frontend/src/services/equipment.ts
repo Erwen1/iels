@@ -14,6 +14,11 @@ interface EquipmentStats {
   }>;
 }
 
+// Type pour les données du formulaire d'équipement
+type EquipmentFormData = Omit<Equipment, 'id' | 'created_at' | 'updated_at'> & {
+  location?: string;
+};
+
 export const equipmentService = {
   // Equipment CRUD operations
   async getAllEquipment() {
@@ -30,6 +35,36 @@ export const equipmentService = {
       return data as Equipment[] || [];
     } catch (err) {
       console.error('Error in getAllEquipment:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Récupère les équipements en fonction du rôle de l'utilisateur
+   * Les administrateurs voient tous les équipements
+   * Les utilisateurs standards ne voient que les équipements disponibles
+   */
+  async getEquipmentByUserRole(isAdmin: boolean = false) {
+    try {
+      // Pour les administrateurs, renvoyer tous les équipements
+      if (isAdmin) {
+        return this.getAllEquipment();
+      }
+      
+      // Pour les utilisateurs standards, filtrer par statut DISPONIBLE
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('*')
+        .eq('status', 'DISPONIBLE');
+
+      if (error) {
+        console.error('Error fetching equipment for user:', error);
+        throw new Error('Erreur lors de la récupération des équipements');
+      }
+
+      return data as Equipment[] || [];
+    } catch (err) {
+      console.error('Error in getEquipmentByUserRole:', err);
       return [];
     }
   },
@@ -54,11 +89,26 @@ export const equipmentService = {
     }
   },
 
-  async createEquipment(equipment: Omit<Equipment, 'id' | 'created_at' | 'updated_at'>) {
+  async createEquipment(data: EquipmentFormData): Promise<Equipment> {
     try {
-      const { data, error } = await supabase
+      // Liste des champs connus dans la base de données
+      const knownColumns = [
+        'reference', 'name', 'description', 'department',
+        'quantity', 'location_id', 'equipment_manager_email', 
+        'status', 'location'
+      ];
+      
+      // Filtrer les propriétés pour ne garder que celles qui existent dans la base de données
+      const filteredData = Object.entries(data).reduce((acc, [key, value]) => {
+        if (knownColumns.includes(key)) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+      
+      const { data: equipment, error } = await supabase
         .from('equipment')
-        .insert(equipment)
+        .insert([filteredData])
         .select()
         .single();
 
@@ -67,10 +117,10 @@ export const equipmentService = {
         throw new Error('Erreur lors de la création de l\'équipement');
       }
 
-      return data;
+      return equipment as Equipment;
     } catch (err) {
       console.error('Error in createEquipment:', err);
-      throw new Error('Impossible de créer l\'équipement');
+      throw err;
     }
   },
 
@@ -231,6 +281,79 @@ export const equipmentService = {
     } catch (error) {
       console.error('Error in getStatusStats:', error);
       throw error;
+    }
+  },
+
+  async getEquipmentByDepartment(departmentId: string): Promise<Equipment[]> {
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('*')
+        .eq('department_id', departmentId);
+
+      if (error) {
+        console.error('Error fetching department equipment:', error);
+        throw new Error('Erreur lors de la récupération des équipements du département');
+      }
+
+      return data as Equipment[] || [];
+    } catch (err) {
+      console.error('Error in getEquipmentByDepartment:', err);
+      return [];
+    }
+  },
+
+  async getDepartmentEquipmentStats(departmentId: string) {
+    try {
+      const { data: equipment, error } = await supabase
+        .from('equipment')
+        .select('*, department:department_id(*)')
+        .eq('department_id', departmentId);
+
+      if (error) {
+        console.error('Error fetching department equipment stats:', error);
+        throw new Error('Erreur lors de la récupération des statistiques du département');
+      }
+
+      // Obtenir les informations sur le département
+      const departmentName = equipment && equipment.length > 0 && equipment[0].department 
+        ? equipment[0].department.name 
+        : 'Inconnu';
+
+      // Calculer les statistiques
+      const totalCount = equipment.length;
+      const availableCount = equipment.filter((item: Equipment) => item.status === 'DISPONIBLE').length;
+      const borrowedCount = equipment.filter((item: Equipment) => item.status === 'EMPRUNTE').length;
+      const maintenanceCount = equipment.filter((item: Equipment) => item.status === 'MAINTENANCE').length;
+
+      // Calculer le pourcentage d'équipements disponibles
+      const availablePercentage = totalCount > 0 ? Math.round((availableCount / totalCount) * 100) : 0;
+
+      // Calculer le nombre d'équipements en retard (à implémenter avec la logique appropriée)
+      const overdueCount = 0; // Placeholder
+
+      return {
+        departmentId,
+        departmentName,
+        totalCount,
+        availableCount,
+        borrowedCount,
+        maintenanceCount,
+        availablePercentage,
+        overdueCount,
+      };
+    } catch (err) {
+      console.error('Error in getDepartmentEquipmentStats:', err);
+      return {
+        departmentId,
+        departmentName: 'Inconnu',
+        totalCount: 0,
+        availableCount: 0,
+        borrowedCount: 0,
+        maintenanceCount: 0,
+        availablePercentage: 0,
+        overdueCount: 0,
+      };
     }
   },
 }; 

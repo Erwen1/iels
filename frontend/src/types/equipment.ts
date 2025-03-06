@@ -8,6 +8,7 @@ export interface Equipment {
   department: string;
   quantity: number;
   location_id: string;
+  location?: string;
   equipment_manager_email: string;
   status: EquipmentStatus;
   loan_requests?: LoanRequest[];
@@ -26,7 +27,9 @@ export interface EquipmentCategory {
 export interface Location {
   id: string;
   building: string;
-  room: string;
+  floor?: string;
+  room?: string;
+  display_name: string;
   created_at: string;
   updated_at: string;
 }

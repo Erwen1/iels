@@ -15,14 +15,22 @@ import { useAuthStore } from './store/authStore';
 import { LoanRequestPage } from './pages/loans/LoanRequestPage';
 import { LoanManagementPage } from './pages/loans/LoanManagementPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { StudentDashboardPage } from './pages/user/StudentDashboardPage';
+import { TeacherDashboardPage } from './pages/user/TeacherDashboardPage';
 import { LoanPage } from './pages/loan/LoanPage';
 import { MaintenancePage } from './pages/maintenance/MaintenancePage';
 import { AdminLoanPage } from './pages/admin/AdminLoanPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { AuthProvider } from './contexts/AuthContext';
 import { RouterProvider } from 'react-router-dom';
-import { DepartmentPage } from './pages/admin/DepartmentPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { fr } from 'date-fns/locale';
+import { UserManagementPage } from './pages/admin/UserManagementPage';
+import { InventoryManagementPage } from './pages/admin/InventoryManagementPage';
+import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
+import { UserRole } from './services/auth';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -51,31 +59,74 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <Router>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              
-              {/* Protected Routes */}
-              <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/equipment" element={<EquipmentList />} />
-                <Route path="/equipment/new" element={<EquipmentFormPage />} />
-                <Route path="/equipment/:id" element={<EquipmentDetails />} />
-                <Route path="/equipment/:id/edit" element={<EquipmentFormPage />} />
-                <Route path="/loans/new" element={<LoanRequestPage />} />
-                <Route path="/loans" element={<LoanPage />} />
-                <Route path="/loans/admin" element={<AdminLoanPage />} />
-                <Route path="/maintenance" element={<MaintenancePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/departments" element={<DepartmentPage />} />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              </Route>
-            </Routes>
-          </Router>
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
+            <CssBaseline />
+            <Router>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                
+                {/* Protected Routes */}
+                <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+                  <Route path="/dashboard" element={
+                    <RoleBasedRoute 
+                      adminComponent={<DashboardPage />}
+                      userComponent={<StudentDashboardPage />}
+                      teacherComponent={<TeacherDashboardPage />}
+                    />
+                  } />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/equipment" element={<EquipmentList />} />
+                  <Route path="/equipment/new" element={
+                    <RoleBasedRoute 
+                      adminComponent={<EquipmentFormPage />}
+                      userComponent={<Navigate to="/dashboard" replace />}
+                      teacherComponent={<EquipmentFormPage />}
+                      requiredRoles={['ADMIN', 'ENSEIGNANT']}
+                    />
+                  } />
+                  <Route path="/equipment/:id" element={<EquipmentDetails />} />
+                  <Route path="/equipment/:id/edit" element={
+                    <RoleBasedRoute 
+                      adminComponent={<EquipmentFormPage />}
+                      userComponent={<Navigate to="/dashboard" replace />}
+                      teacherComponent={<EquipmentFormPage />}
+                      requiredRoles={['ADMIN', 'ENSEIGNANT']}
+                    />
+                  } />
+                  <Route path="/loans/new" element={<LoanRequestPage />} />
+                  <Route path="/loans" element={<LoanPage />} />
+                  <Route path="/loans/admin" element={
+                    <RoleBasedRoute 
+                      adminComponent={<AdminLoanPage />}
+                      userComponent={<Navigate to="/dashboard" replace />}
+                      teacherComponent={<AdminLoanPage />}
+                      requiredRoles={[UserRole.ADMIN, UserRole.ENSEIGNANT]}
+                    />
+                  } />
+                  <Route path="/maintenance" element={<MaintenancePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/inventory" element={
+                    <RoleBasedRoute 
+                      adminComponent={<InventoryManagementPage />}
+                      userComponent={<Navigate to="/dashboard" replace />}
+                      teacherComponent={<InventoryManagementPage />}
+                      requiredRoles={[UserRole.ADMIN, UserRole.ENSEIGNANT]}
+                    />
+                  } />
+                  <Route path="/users" element={
+                    <RoleBasedRoute 
+                      adminComponent={<UserManagementPage />}
+                      userComponent={<Navigate to="/dashboard" replace />}
+                      requiredRoles={[UserRole.ADMIN]}
+                    />
+                  } />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+              </Routes>
+            </Router>
+          </LocalizationProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </AuthProvider>

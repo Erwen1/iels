@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Container,
@@ -13,12 +13,21 @@ import {
   ListItemText,
   Chip,
   Avatar,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  FormHelperText,
+  SelectChangeEvent,
+  Tooltip,
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService } from '../../services/user';
-import type { UserProfile, UserActivity } from '../../services/user';
+import type { UserProfile, UserActivity, Role } from '../../services/user';
+import { UserRole } from '../../services/auth';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import InfoIcon from '@mui/icons-material/Info';
 
 export function ProfilePage() {
   const queryClient = useQueryClient();
@@ -31,6 +40,11 @@ export function ProfilePage() {
     queryKey: ['userActivities', user?.id],
     queryFn: () => userService.getUserActivities(user!.id),
     enabled: !!user?.id,
+  });
+
+  const { data: roles } = useQuery({
+    queryKey: ['roles'],
+    queryFn: userService.getRoles,
   });
 
   const updateProfileMutation = useMutation({
@@ -57,6 +71,15 @@ export function ProfilePage() {
     },
   });
 
+  const updateRoleMutation = useMutation({
+    mutationFn: (roleId: string) => userService.updateUserRole(user!.id, roleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['currentUser']);
+    },
+  });
+
+  const [selectedRole, setSelectedRole] = useState<string>('');
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -66,6 +89,34 @@ export function ProfilePage() {
       office_location: formData.get('office_location') as string,
     };
     updateProfileMutation.mutate(profile);
+  };
+
+  const handleRoleChange = (event: SelectChangeEvent) => {
+    setSelectedRole(event.target.value);
+  };
+
+  const handleUpdateRole = () => {
+    if (selectedRole) {
+      updateRoleMutation.mutate(selectedRole);
+    }
+  };
+
+  const isAdmin = user?.profile?.role?.name === UserRole.ADMIN;
+  const isTeacher = user?.profile?.role?.name === UserRole.ENSEIGNANT;
+  const canEditEquipment = isAdmin || isTeacher;
+
+  const getRoleColor = (roleName: string | undefined) => {
+    if (!roleName) return 'default';
+    switch (roleName) {
+      case UserRole.ADMIN:
+        return 'error';
+      case UserRole.ENSEIGNANT:
+        return 'warning';
+      case UserRole.ETUDIANT:
+        return 'primary';
+      default:
+        return 'default';
+    }
   };
 
   if (isLoadingUser) {
@@ -212,16 +263,72 @@ export function ProfilePage() {
                   <Typography variant="subtitle2" color="text.secondary">
                     Rôle
                   </Typography>
-                  <Typography>
-                    {user.profile?.role?.name || 'Non assigné'}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip 
+                      label={user.profile?.role?.name || UserRole.ETUDIANT} 
+                      color={getRoleColor(user.profile?.role?.name)}
+                      size="small" 
+                    />
+                    <Tooltip title={
+                      user.profile?.role?.name === UserRole.ADMIN 
+                        ? "Accès complet à toutes les fonctionnalités, y compris la gestion des utilisateurs" 
+                        : user.profile?.role?.name === UserRole.ENSEIGNANT 
+                          ? "Gestion des équipements et des demandes d'emprunt" 
+                          : "Consultation et demandes d'emprunt uniquement"
+                    }>
+                      <InfoIcon fontSize="small" color="action" />
+                    </Tooltip>
+                  </Box>
                 </Grid>
+                
+                {isAdmin && (
+                  <Grid item xs={12} sx={{ mt: 2 }}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Modifier le rôle (Admin uniquement)
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                      <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <InputLabel id="role-select-label">Nouveau rôle</InputLabel>
+                        <Select
+                          labelId="role-select-label"
+                          id="role-select"
+                          value={selectedRole}
+                          label="Nouveau rôle"
+                          onChange={handleRoleChange}
+                        >
+                          {roles?.map((role: Role) => (
+                            <MenuItem key={role.id} value={role.id}>
+                              <Chip 
+                                label={role.name} 
+                                color={getRoleColor(role.name)}
+                                size="small" 
+                                sx={{ mr: 1 }}
+                              />
+                              {role.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                        <FormHelperText>Sélectionnez un nouveau rôle pour l'utilisateur</FormHelperText>
+                      </FormControl>
+                      <Button 
+                        variant="contained" 
+                        size="small"
+                        onClick={handleUpdateRole}
+                        disabled={!selectedRole || updateRoleMutation.isLoading}
+                      >
+                        {updateRoleMutation.isLoading ? 'Mise à jour...' : 'Mettre à jour'}
+                      </Button>
+                    </Box>
+                  </Grid>
+                )}
+                
                 {user.profile?.role?.permissions && (
                   <Grid item xs={12}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
-                      sx={{ mb: 1 }}
+                      sx={{ mb: 1, mt: 2 }}
                     >
                       Permissions
                     </Typography>
@@ -231,7 +338,7 @@ export function ProfilePage() {
                           key={permission}
                           label={permission}
                           size="small"
-                          color="primary"
+                          color="secondary"
                           variant="outlined"
                         />
                       ))}

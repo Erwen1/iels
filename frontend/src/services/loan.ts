@@ -31,13 +31,21 @@ interface DurationStat {
 }
 
 export const loanService = {
-  async createLoanRequest(data: Omit<LoanRequest, 'id' | 'created_at' | 'updated_at' | 'status' | 'actual_return_date'>): Promise<LoanRequest> {
+  async createLoanRequest(data: Omit<LoanRequest, 'id' | 'created_at' | 'updated_at' | 'status' | 'actual_return_date'> & { terms_accepted?: boolean }): Promise<LoanRequest> {
     try {
+      // Filter out the terms_accepted field as it's not stored in the database
+      const { terms_accepted, ...loanData } = data;
+
+      // Ensure terms are accepted
+      if (!terms_accepted) {
+        throw new Error('Vous devez accepter les conditions d\'emprunt');
+      }
+
       const { data: loanRequest, error } = await supabase
         .from('loan_requests')
         .insert([
           {
-            ...data,
+            ...loanData,
             status: 'EN_ATTENTE',
           },
         ])
@@ -272,20 +280,143 @@ export const loanService = {
         .from('loan_requests')
         .select(`
           *,
-          equipment:equipment_id(*),
-          status_history:loan_status_history(*)
+          equipment (
+            id,
+            name,
+            reference
+          )
         `)
         .eq('id', id)
         .single();
 
-      if (error) {
-        throw new Error(`Error fetching loan request: ${error.message}`);
-      }
-
+      if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Error in getLoanRequestById:', error);
+      console.error('Error fetching loan request:', error);
       throw error;
+    }
+  },
+
+  async getUserLoans() {
+    try {
+      const { data: currentUser } = await supabase.auth.getUser();
+      
+      if (!currentUser || !currentUser.user) {
+        throw new Error('Utilisateur non authentifié');
+      }
+
+      const { data, error } = await supabase
+        .from('loan_requests')
+        .select(`
+          *,
+          equipment (
+            id,
+            name,
+            reference,
+            description
+          )
+        `)
+        .eq('loan_manager_email', currentUser.user.email)
+        .in('status', ['EN_ATTENTE', 'APPROUVE', 'EMPRUNTE'])
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching user loans:', error);
+      return [];
+    }
+  },
+
+  async getUserLoanHistory() {
+    try {
+      const { data: currentUser } = await supabase.auth.getUser();
+      
+      if (!currentUser || !currentUser.user) {
+        throw new Error('Utilisateur non authentifié');
+      }
+
+      const { data, error } = await supabase
+        .from('loan_requests')
+        .select(`
+          *,
+          equipment (
+            id,
+            name,
+            reference
+          )
+        `)
+        .eq('loan_manager_email', currentUser.user.email)
+        .filter('status', 'not.eq', 'EN_ATTENTE')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching user loan history:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Récupère les emprunts des étudiants d'un département spécifique
+   * @param departmentId ID du département
+   * @param filter Filtre optionnel: 'active', 'pending', 'overdue'
+   * @returns Liste des emprunts
+   */
+  async getDepartmentLoans(departmentId: string, filter: 'active' | 'pending' | 'overdue' = 'active') {
+    try {
+      // Construire la requête de base
+      let query = supabase
+        .from('loan_requests')
+        .select(`
+          *,
+          equipment (
+            id,
+            name,
+            reference,
+            department_id
+          ),
+          users!loan_requests_loan_manager_email_fkey (
+            id,
+            full_name,
+            email,
+            department_id
+          )
+        `)
+        .eq('equipment.department_id', departmentId);
+
+      // Ajouter le filtre approprié
+      if (filter === 'active') {
+        query = query.in('status', ['APPROUVE', 'EMPRUNTE']);
+      } else if (filter === 'pending') {
+        query = query.eq('status', 'EN_ATTENTE');
+      } else if (filter === 'overdue') {
+        // Pour les emprunts en retard, on filtre sur les emprunts actifs
+        // dont la date de retour prévue est passée
+        const today = new Date().toISOString();
+        query = query
+          .eq('status', 'EMPRUNTE')
+          .lt('expected_return_date', today);
+      }
+
+      // Exécuter la requête
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching department loans:', error);
+        throw new Error('Erreur lors de la récupération des emprunts du département');
+      }
+
+      // Formater les données pour l'affichage
+      return data.map((loan: any) => ({
+        ...loan,
+        student_name: loan.users?.full_name || loan.loan_manager_email,
+      })) || [];
+    } catch (err) {
+      console.error('Error in getDepartmentLoans:', err);
+      return [];
     }
   },
 };
