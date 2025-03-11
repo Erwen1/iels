@@ -21,9 +21,9 @@ export function useAuth() {
         .single();
       
       // Si l'erreur est que la table n'existe pas, on retourne un objet temporaire
-      if (error && error.code === '42P01') { // Code PostgreSQL pour "relation does not exist"
+      if (error && error.code === '42P01') {
         console.log('La table users n\'existe pas encore. Considérons cet utilisateur comme ADMIN temporairement.');
-        return { role: 'ADMIN' }; // Attribution temporaire du rôle admin
+        return { role: 'ADMIN' };
       }
       
       if (error) {
@@ -31,11 +31,7 @@ export function useAuth() {
         return null;
       }
       
-      if (data) {
-        return data;
-      }
-      
-      return null;
+      return data;
     } catch (err) {
       console.error('Erreur dans fetchUserDetails:', err);
       return null;
@@ -44,8 +40,11 @@ export function useAuth() {
 
   // Fonction pour enrichir l'utilisateur avec les données de rôle
   const enrichUserWithRole = async (authUser: User | null) => {
+    setLoading(true);
+    
     if (!authUser) {
       setUser(null);
+      setLoading(false);
       return;
     }
     
@@ -72,6 +71,8 @@ export function useAuth() {
       console.error('Erreur lors de l\'enrichissement de l\'utilisateur:', err);
       // En cas d'erreur, on utilise l'utilisateur sans rôle
       setUser(authUser);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -82,8 +83,8 @@ export function useAuth() {
         enrichUserWithRole(session.user);
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Listen for auth changes
@@ -94,38 +95,33 @@ export function useAuth() {
         enrichUserWithRole(session.user);
       } else {
         setUser(null);
+        setLoading(false);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-  };
-
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
-  };
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  };
-
   return {
     user,
     loading,
-    signIn,
-    signUp,
-    signOut,
+    signIn: async (email: string, password: string) => {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+    },
+    signUp: async (email: string, password: string) => {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (error) throw error;
+    },
+    signOut: async () => {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    }
   };
 } 

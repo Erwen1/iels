@@ -43,7 +43,7 @@ import { useAuth } from '../../hooks/useAuth';
 
 type EquipmentWithRelations = Equipment & {
   category: EquipmentCategory;
-  location: Location;
+  location: Location | string;
 };
 
 const getStatusColor = (status: Equipment['status']) => {
@@ -59,7 +59,7 @@ const getStatusColor = (status: Equipment['status']) => {
 export const EquipmentList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdminOrTeacher = user?.role === 'ADMIN' || user?.role === 'ENSEIGNANT';
   
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -167,7 +167,6 @@ export const EquipmentList = () => {
               setFilters(prev => ({
                 ...prev,
                 available: !prev.available,
-                // Si on active le filtre de disponibilité, on retire le filtre de statut s'il est présent
                 status: prev.available ? prev.status : ''
               }));
             }}
@@ -185,7 +184,7 @@ export const EquipmentList = () => {
             </Button>
           )}
         </Box>
-        {isAdmin && (
+        {isAdminOrTeacher && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -203,7 +202,7 @@ export const EquipmentList = () => {
               <Typography variant="h6">
                 Filtres avancés
               </Typography>
-              {!isAdmin && (
+              {!isAdminOrTeacher && (
                 <Chip 
                   color="primary" 
                   size="small" 
@@ -289,97 +288,82 @@ export const EquipmentList = () => {
               <TableCell>Référence</TableCell>
               <TableCell>Référent matériel (mail)</TableCell>
               <TableCell>Disponibilité</TableCell>
-              <TableCell>Description projet emprunteur</TableCell>
-              <TableCell>Référent prêt (mail)</TableCell>
-              <TableCell>Date d'emprunt</TableCell>
-              <TableCell>Date de retour (envisagée)</TableCell>
-              <TableCell>Date retour (effective)</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredEquipment
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((item: EquipmentWithRelations) => {
-                const currentLoan = item.loan_requests?.find(loan => loan.status === 'EMPRUNTE');
-                
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.description}</TableCell>
-                    <TableCell>{item.department}</TableCell>
-                    <TableCell>{item.quantity}</TableCell>
-                    <TableCell>
-                      {item.location
-                        ? `${item.location.building} - ${item.location.room}`
+              .map((item: EquipmentWithRelations) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{item.description}</TableCell>
+                  <TableCell>{item.department}</TableCell>
+                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>
+                    {typeof item.location === 'string' 
+                      ? item.location.startsWith('Bâtiment ')
+                        ? item.location.split(' - ').reduce((acc, part) => {
+                            if (part.startsWith('Bâtiment ')) {
+                              return acc + part.replace('Bâtiment ', '');
+                            } else if (part.match(/\d+$/)) {
+                              return acc + (part.match(/\d+$/)?.[0] || '');
+                            }
+                            return acc;
+                          }, '')
+                        : item.location
+                      : item.location
+                        ? `${(item.location as Location).building.replace('Bâtiment ', '')}${(item.location as Location).room?.match(/\d+$/)?.[0] || ''}`
                         : 'N/A'}
-                    </TableCell>
-                    <TableCell>{item.reference}</TableCell>
-                    <TableCell>{item.equipment_manager_email}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={item.status}
-                        color={getStatusColor(item.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{currentLoan?.project_description || '-'}</TableCell>
-                    <TableCell>{currentLoan?.loan_manager_email || '-'}</TableCell>
-                    <TableCell>
-                      {currentLoan?.borrowing_date
-                        ? format(new Date(currentLoan.borrowing_date), 'dd/MM/yyyy')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {currentLoan?.expected_return_date
-                        ? format(new Date(currentLoan.expected_return_date), 'dd/MM/yyyy')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {currentLoan?.actual_return_date
-                        ? format(new Date(currentLoan.actual_return_date), 'dd/MM/yyyy')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {isAdmin ? (
-                        <>
-                          <IconButton
-                            onClick={() => navigate(`/equipment/${item.id}`)}
-                            size="small"
-                            sx={{ mr: 1 }}
-                            title="Modifier"
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          {item.status === 'DISPONIBLE' && (
-                            <Tooltip title="Demander cet équipement">
-                              <IconButton
-                                onClick={() => navigate(`/loans/new?equipmentId=${item.id}`)}
-                                size="small"
-                                color="primary"
-                              >
-                                <RequestIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </>
-                      ) : (
-                        // Les étudiants ne peuvent emprunter que les équipements disponibles
-                        item.status === 'DISPONIBLE' && (
-                          <Button
-                            variant="contained"
-                            size="small"
-                            onClick={() => navigate(`/loans/new?equipmentId=${item.id}`)}
-                            startIcon={<RequestIcon />}
-                          >
-                            Emprunter
-                          </Button>
-                        )
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                  </TableCell>
+                  <TableCell>{item.reference}</TableCell>
+                  <TableCell>{item.equipment_manager_email}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={item.status}
+                      color={getStatusColor(item.status)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {isAdminOrTeacher ? (
+                      <>
+                        <IconButton
+                          onClick={() => navigate(`/equipment/${item.id}`)}
+                          size="small"
+                          sx={{ mr: 1 }}
+                          title="Modifier"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        {item.status === 'DISPONIBLE' && (
+                          <Tooltip title="Demander cet équipement">
+                            <IconButton
+                              onClick={() => navigate(`/loans/new?equipmentId=${item.id}`)}
+                              size="small"
+                              color="primary"
+                            >
+                              <RequestIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </>
+                    ) : (
+                      // Les étudiants ne peuvent emprunter que les équipements disponibles
+                      item.status === 'DISPONIBLE' && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => navigate(`/loans/new?equipmentId=${item.id}`)}
+                          startIcon={<RequestIcon />}
+                        >
+                          Emprunter
+                        </Button>
+                      )
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
 
               {/* Si aucun résultat n'est trouvé, afficher un message */}
               {filteredEquipment.length === 0 && (

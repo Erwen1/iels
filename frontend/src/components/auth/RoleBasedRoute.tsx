@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import { UserRole } from '../../services/auth';
+import { CircularProgress, Box } from '@mui/material';
 
 interface RoleBasedRouteProps {
   adminComponent: React.ReactNode;
@@ -18,11 +19,26 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
   requiredRoles = [], 
   fallbackPath = '/dashboard'
 }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   
-  // Log pour débogage
-  console.log('RoleBasedRoute - User:', user);
-  console.log('RoleBasedRoute - Required roles:', requiredRoles);
+  // Enhanced debugging logs
+  console.log('RoleBasedRoute - Debug Info:', {
+    user,
+    userRole: user?.role,
+    requiredRoles,
+    isAdmin: user?.role === 'ADMIN',
+    hasRequiredRole: user?.role ? requiredRoles.includes(user.role) : false,
+    loading
+  });
+  
+  // Show loading state while waiting for user data
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
   
   // Si aucun rôle requis n'est spécifié, on vérifie juste si l'utilisateur est connecté
   if (requiredRoles.length === 0) {
@@ -55,6 +71,10 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
   }
   
   // Si l'utilisateur n'a pas les droits requis, le rediriger
-  console.log(`User does not have required roles, redirecting to ${fallbackPath}`);
+  console.log('Access denied - Current state:', {
+    userRole: user?.role,
+    requiredRoles,
+    redirectingTo: fallbackPath
+  });
   return <Navigate to={fallbackPath} replace />;
 }; 

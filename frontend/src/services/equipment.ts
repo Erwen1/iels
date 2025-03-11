@@ -126,9 +126,19 @@ export const equipmentService = {
 
   async updateEquipment(id: string, data: Omit<Equipment, 'id' | 'created_at' | 'updated_at'>) {
     try {
+      // Convert Date objects to ISO strings
+      const processedData = Object.entries(data).reduce((acc, [key, value]) => {
+        if (value instanceof Date) {
+          acc[key] = value.toISOString();
+        } else {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+
       const { data: equipment, error } = await supabase
         .from('equipment')
-        .update(data)
+        .update(processedData)
         .eq('id', id)
         .select()
         .single();

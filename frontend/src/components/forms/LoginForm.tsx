@@ -42,7 +42,7 @@ export const LoginForm = () => {
       }}
     >
       <Typography variant="h5" component="h1" gutterBottom>
-        Login to IELMS
+        Login to PolyPrêt
       </Typography>
 
       {error && <Alert severity="error">{error}</Alert>}

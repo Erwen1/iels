@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { useState } from 'react';
 import type { LoanRequest, LoanStatus } from '../../types/equipment';
 import { loanService } from '../../services/loan';
+import { useAuth } from '../../hooks/useAuth';
 
 const getStatusColor = (status: LoanStatus) => {
   const colors: Record<LoanStatus, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
@@ -34,50 +35,22 @@ const getStatusColor = (status: LoanStatus) => {
   return colors[status];
 };
 
-interface ActionDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: (comment: string) => void;
-  title: string;
-  action: string;
-}
-
-const ActionDialog: React.FC<ActionDialogProps> = ({
-  open,
-  onClose,
-  onConfirm,
-  title,
-  action,
-}) => {
-  const [comment, setComment] = useState('');
-
-  return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <TextField
-          autoFocus
-          margin="dense"
-          label="Commentaire"
-          fullWidth
-          multiline
-          rows={4}
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Annuler</Button>
-        <Button onClick={() => onConfirm(comment)} color="primary">
-          {action}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
+const getStatusLabel = (status: LoanStatus): string => {
+  const labels: Record<LoanStatus, string> = {
+    EN_ATTENTE: 'En attente',
+    APPROUVE: 'Approuvé',
+    EMPRUNTE: 'Emprunté',
+    RETOURNE: 'Retourné',
+    REFUSE: 'Refusé',
+  };
+  return labels[status];
 };
 
 export const LoanManagementPage = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdminOrTeacher = user?.role === 'ADMIN' || user?.role === 'ENSEIGNANT';
+  
   const [selectedLoan, setSelectedLoan] = useState<{
     loan: LoanRequest | null;
     action: 'approve' | 'reject' | null;
@@ -85,9 +58,12 @@ export const LoanManagementPage = () => {
 
   const { data: loanRequests, isLoading } = useQuery({
     queryKey: ['loanRequests'],
-    queryFn: () => loanService.getAllLoanRequests(),
+    queryFn: () => isAdminOrTeacher 
+      ? loanService.getAllLoanRequests()
+      : loanService.getUserLoanHistory(),
   });
 
+  // Mutations et handlers uniquement pour admin/enseignant
   const updateLoanStatusMutation = useMutation({
     mutationFn: ({
       loanId,
@@ -97,7 +73,12 @@ export const LoanManagementPage = () => {
       loanId: string;
       status: LoanStatus;
       comment: string;
-    }) => loanService.updateLoanStatus(loanId, status, comment),
+    }) => {
+      if (!isAdminOrTeacher) {
+        throw new Error("Opération non autorisée");
+      }
+      return loanService.updateLoanStatus(loanId, status, comment);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loanRequests'] });
       handleCloseDialog();
@@ -105,15 +86,17 @@ export const LoanManagementPage = () => {
   });
 
   const handleAction = (loan: LoanRequest, action: 'approve' | 'reject') => {
+    if (!isAdminOrTeacher) return;
     setSelectedLoan({ loan, action });
   };
 
   const handleCloseDialog = () => {
+    if (!isAdminOrTeacher) return;
     setSelectedLoan({ loan: null, action: null });
   };
 
   const handleConfirmAction = (comment: string) => {
-    if (!selectedLoan.loan || !selectedLoan.action) return;
+    if (!isAdminOrTeacher || !selectedLoan.loan || !selectedLoan.action) return;
 
     const status: LoanStatus =
       selectedLoan.action === 'approve' ? 'APPROUVE' : 'REFUSE';
@@ -132,7 +115,7 @@ export const LoanManagementPage = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Gestion des emprunts
+        {isAdminOrTeacher ? 'Gestion des emprunts' : 'Mes emprunts'}
       </Typography>
 
       <Paper sx={{ mt: 3 }}>
@@ -140,19 +123,19 @@ export const LoanManagementPage = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>ID Matériel</TableCell>
-                <TableCell>Projet</TableCell>
+                <TableCell>Matériel</TableCell>
+                <TableCell>Description du projet</TableCell>
                 <TableCell>Référent</TableCell>
                 <TableCell>Date d'emprunt</TableCell>
-                <TableCell>Retour prévu</TableCell>
+                <TableCell>Date de retour</TableCell>
                 <TableCell>Statut</TableCell>
-                <TableCell>Actions</TableCell>
+                {isAdminOrTeacher && <TableCell>Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
               {loanRequests?.map((loan) => (
                 <TableRow key={loan.id}>
-                  <TableCell>{loan.equipment_id}</TableCell>
+                  <TableCell>{loan.equipment?.name || loan.equipment_id}</TableCell>
                   <TableCell>{loan.project_description}</TableCell>
                   <TableCell>{loan.loan_manager_email}</TableCell>
                   <TableCell>
@@ -163,33 +146,35 @@ export const LoanManagementPage = () => {
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={loan.status}
+                      label={getStatusLabel(loan.status)}
                       color={getStatusColor(loan.status)}
                       size="small"
                     />
                   </TableCell>
-                  <TableCell>
-                    {loan.status === 'EN_ATTENTE' && (
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="primary"
-                          onClick={() => handleAction(loan, 'approve')}
-                        >
-                          Approuver
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          onClick={() => handleAction(loan, 'reject')}
-                        >
-                          Refuser
-                        </Button>
-                      </Box>
-                    )}
-                  </TableCell>
+                  {isAdminOrTeacher && loan.status === 'EN_ATTENTE' && (
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        onClick={() => handleAction(loan, 'approve')}
+                        sx={{ mr: 1 }}
+                      >
+                        Accepter
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        size="small"
+                        onClick={() => handleAction(loan, 'reject')}
+                      >
+                        Refuser
+                      </Button>
+                    </TableCell>
+                  )}
+                  {isAdminOrTeacher && loan.status !== 'EN_ATTENTE' && (
+                    <TableCell>-</TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -197,17 +182,37 @@ export const LoanManagementPage = () => {
         </TableContainer>
       </Paper>
 
-      <ActionDialog
-        open={!!selectedLoan.action}
-        onClose={handleCloseDialog}
-        onConfirm={handleConfirmAction}
-        title={
-          selectedLoan.action === 'approve'
-            ? 'Approuver la demande'
-            : 'Refuser la demande'
-        }
-        action={selectedLoan.action === 'approve' ? 'Approuver' : 'Refuser'}
-      />
+      {isAdminOrTeacher && (
+        <Dialog open={!!selectedLoan.loan} onClose={handleCloseDialog}>
+          <DialogTitle>
+            {selectedLoan.action === 'approve'
+              ? 'Accepter la demande'
+              : 'Refuser la demande'}
+          </DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Commentaire"
+              fullWidth
+              multiline
+              rows={4}
+              variant="outlined"
+              onChange={(e) => handleConfirmAction(e.target.value)}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Annuler</Button>
+            <Button
+              onClick={() => handleConfirmAction('')}
+              color={selectedLoan.action === 'approve' ? 'success' : 'error'}
+              variant="contained"
+            >
+              {selectedLoan.action === 'approve' ? 'Accepter' : 'Refuser'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
     </Box>
   );
 }; 
