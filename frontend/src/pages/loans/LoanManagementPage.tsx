@@ -9,17 +9,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Button,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
 } from '@mui/material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { useState } from 'react';
 import type { LoanRequest, LoanStatus } from '../../types/equipment';
 import { loanService } from '../../services/loan';
 import { useAuth } from '../../hooks/useAuth';
@@ -47,14 +40,8 @@ const getStatusLabel = (status: LoanStatus): string => {
 };
 
 export const LoanManagementPage = () => {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdminOrTeacher = user?.role === 'ADMIN' || user?.role === 'ENSEIGNANT';
-  
-  const [selectedLoan, setSelectedLoan] = useState<{
-    loan: LoanRequest | null;
-    action: 'approve' | 'reject' | null;
-  }>({ loan: null, action: null });
 
   const { data: loanRequests, isLoading } = useQuery({
     queryKey: ['loanRequests'],
@@ -62,51 +49,6 @@ export const LoanManagementPage = () => {
       ? loanService.getAllLoanRequests()
       : loanService.getUserLoanHistory(),
   });
-
-  // Mutations et handlers uniquement pour admin/enseignant
-  const updateLoanStatusMutation = useMutation({
-    mutationFn: ({
-      loanId,
-      status,
-      comment,
-    }: {
-      loanId: string;
-      status: LoanStatus;
-      comment: string;
-    }) => {
-      if (!isAdminOrTeacher) {
-        throw new Error("Opération non autorisée");
-      }
-      return loanService.updateLoanStatus(loanId, status, comment);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loanRequests'] });
-      handleCloseDialog();
-    },
-  });
-
-  const handleAction = (loan: LoanRequest, action: 'approve' | 'reject') => {
-    if (!isAdminOrTeacher) return;
-    setSelectedLoan({ loan, action });
-  };
-
-  const handleCloseDialog = () => {
-    if (!isAdminOrTeacher) return;
-    setSelectedLoan({ loan: null, action: null });
-  };
-
-  const handleConfirmAction = (comment: string) => {
-    if (!isAdminOrTeacher || !selectedLoan.loan || !selectedLoan.action) return;
-
-    const status: LoanStatus =
-      selectedLoan.action === 'approve' ? 'APPROUVE' : 'REFUSE';
-
-    updateLoanStatusMutation.mutate({
-      loanId: selectedLoan.loan.id,
-      status,
-      comment,
-    });
-  };
 
   if (isLoading) {
     return <Typography>Chargement...</Typography>;
@@ -129,7 +71,6 @@ export const LoanManagementPage = () => {
                 <TableCell>Date d'emprunt</TableCell>
                 <TableCell>Date de retour</TableCell>
                 <TableCell>Statut</TableCell>
-                {isAdminOrTeacher && <TableCell>Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -151,68 +92,12 @@ export const LoanManagementPage = () => {
                       size="small"
                     />
                   </TableCell>
-                  {isAdminOrTeacher && loan.status === 'EN_ATTENTE' && (
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        onClick={() => handleAction(loan, 'approve')}
-                        sx={{ mr: 1 }}
-                      >
-                        Accepter
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="error"
-                        size="small"
-                        onClick={() => handleAction(loan, 'reject')}
-                      >
-                        Refuser
-                      </Button>
-                    </TableCell>
-                  )}
-                  {isAdminOrTeacher && loan.status !== 'EN_ATTENTE' && (
-                    <TableCell>-</TableCell>
-                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </TableContainer>
       </Paper>
-
-      {isAdminOrTeacher && (
-        <Dialog open={!!selectedLoan.loan} onClose={handleCloseDialog}>
-          <DialogTitle>
-            {selectedLoan.action === 'approve'
-              ? 'Accepter la demande'
-              : 'Refuser la demande'}
-          </DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Commentaire"
-              fullWidth
-              multiline
-              rows={4}
-              variant="outlined"
-              onChange={(e) => handleConfirmAction(e.target.value)}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Annuler</Button>
-            <Button
-              onClick={() => handleConfirmAction('')}
-              color={selectedLoan.action === 'approve' ? 'success' : 'error'}
-              variant="contained"
-            >
-              {selectedLoan.action === 'approve' ? 'Accepter' : 'Refuser'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      )}
     </Box>
   );
 }; 

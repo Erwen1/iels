@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { TextField, Button, Box, Grid, Typography, FormControlLabel, Checkbox, FormHelperText, Paper } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers';
@@ -6,25 +6,35 @@ import type { LoanRequest } from '../../types/equipment';
 import { format, addDays } from 'date-fns';
 
 interface LoanRequestFormProps {
-  initialData?: LoanRequest;
+  initialData?: LoanRequest | any;
   equipmentId?: string;
   onSubmit?: (data: any) => void;
+  disableEmailField?: boolean;
 }
 
-export function LoanRequestForm({ initialData, equipmentId, onSubmit }: LoanRequestFormProps) {
+export function LoanRequestForm({ initialData, equipmentId, onSubmit, disableEmailField = false }: LoanRequestFormProps) {
   const today = new Date();
   const nextWeek = addDays(today, 7);
   
-  const { control, handleSubmit, formState: { errors } } = useForm<any>({
-    defaultValues: initialData || {
+  const { control, handleSubmit, formState: { errors }, setValue, reset } = useForm<any>({
+    defaultValues: {
       project_description: '',
       loan_manager_email: '',
+      student_email: '',
       borrowing_date: today,
       expected_return_date: nextWeek,
       equipment_id: equipmentId,
       terms_accepted: false
     },
   });
+  
+  // Mettre à jour les valeurs du formulaire lorsque initialData change
+  useEffect(() => {
+    if (initialData) {
+      console.log("Mise à jour des données initiales:", initialData);
+      reset(initialData);
+    }
+  }, [initialData, reset]);
 
   const handleFormSubmit = (data: any) => {
     if (onSubmit) {
@@ -32,6 +42,7 @@ export function LoanRequestForm({ initialData, equipmentId, onSubmit }: LoanRequ
         ...data,
         equipment_id: equipmentId
       };
+      console.log("Données de formulaire soumises:", formData);
       onSubmit(formData);
     }
   };
@@ -70,7 +81,7 @@ export function LoanRequestForm({ initialData, equipmentId, onSubmit }: LoanRequ
             name="loan_manager_email"
             control={control}
             rules={{
-              required: 'L\'email du responsable est requis',
+              required: 'L\'email du référent matériel est requis',
               pattern: {
                 value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
                 message: 'Adresse email invalide',
@@ -80,9 +91,33 @@ export function LoanRequestForm({ initialData, equipmentId, onSubmit }: LoanRequ
               <TextField
                 {...field}
                 fullWidth
-                label="Email du responsable"
+                label="Email du référent matériel"
                 error={!!errors.loan_manager_email}
                 helperText={getErrorMessage(errors.loan_manager_email?.message)}
+                disabled={disableEmailField}
+              />
+            )}
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <Controller
+            name="student_email"
+            control={control}
+            rules={{
+              required: 'L\'email de l\'étudiant est requis',
+              pattern: {
+                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                message: 'Adresse email invalide',
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                fullWidth
+                label="Votre email (emprunteur)"
+                error={!!errors.student_email}
+                helperText={getErrorMessage(errors.student_email?.message)}
+                disabled={true} // Toujours désactivé car c'est l'email de l'utilisateur connecté
               />
             )}
           />

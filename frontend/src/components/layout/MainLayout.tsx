@@ -10,7 +10,8 @@ import {
   Business,
   Add,
   LocationOn,
-  SupervisorAccount
+  SupervisorAccount,
+  Email
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, Outlet, Link } from 'react-router-dom';
@@ -63,7 +64,7 @@ export const MainLayout = () => {
       path: '/users', 
       allowedRoles: [UserRole.ADMIN] 
     },
-    { text: 'Settings', icon: <Settings />, path: '/settings' },
+    { text: 'Paramètres', icon: <Settings />, path: '/settings' },
   ];
 
   // Vérifier si l'utilisateur a accès à un élément de menu en fonction de son rôle

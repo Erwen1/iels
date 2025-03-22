@@ -36,7 +36,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { equipmentService } from '../../services/equipment';
-import type { Equipment, EquipmentCategory, Location } from '../../types/equipment';
+import type { Equipment, EquipmentCategory, Location, EquipmentType } from '../../types/equipment';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
@@ -56,6 +56,24 @@ const getStatusColor = (status: Equipment['status']) => {
   return colors[status];
 };
 
+// Fonction pour obtenir le libellé du type de matériel
+const getEquipmentTypeLabel = (type: EquipmentType | undefined) => {
+  if (!type) return 'Non défini';
+  
+  switch (type) {
+    case 'MATERIEL_PROJET':
+      return 'Matériel projet';
+    case 'MATERIEL_INFORMATIQUE':
+      return 'Matériel informatique';
+    case 'MATERIEL_PEDAGOGIQUE':
+      return 'Matériel pédagogique';
+    case 'CONVIVIALITE':
+      return 'Convivialité';
+    default:
+      return 'Non défini';
+  }
+};
+
 export const EquipmentList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -70,6 +88,7 @@ export const EquipmentList = () => {
     department: '',
     building: '',
     available: false,
+    type: '',
   });
 
   const { data: equipment = [], isLoading } = useQuery({
@@ -85,6 +104,11 @@ export const EquipmentList = () => {
       ? item.location.split(' - ')[0] 
       : (item as any).location?.building))].filter(Boolean).sort();
 
+  // Extraction des types de matériel existants
+  const uniqueTypes = [...new Set(equipment
+    .filter((item: Equipment) => item.type)
+    .map((item: Equipment) => item.type))].filter(Boolean).sort();
+
   const handleFilterChange = (field: string, value: string) => {
     setFilters({
       ...filters,
@@ -99,6 +123,7 @@ export const EquipmentList = () => {
       department: '',
       building: '',
       available: false,
+      type: '',
     });
     setSearchTerm('');
   };
@@ -121,10 +146,13 @@ export const EquipmentList = () => {
       (typeof item.location === 'string' && item.location.startsWith(filters.building)) ||
       ((item as any).location?.building === filters.building);
     
+    // Type filter
+    const matchesType = filters.type === '' || item.type === filters.type;
+    
     // Available filter (raccourci pour voir uniquement les équipements disponibles)
     const matchesAvailable = !filters.available || item.status === 'DISPONIBLE';
     
-    return matchesSearch && matchesStatus && matchesDepartment && matchesBuilding && matchesAvailable;
+    return matchesSearch && matchesStatus && matchesDepartment && matchesBuilding && matchesType && matchesAvailable;
   }) as EquipmentWithRelations[];
 
   const handleChangePage = (_: unknown, newPage: number) => {
@@ -231,6 +259,23 @@ export const EquipmentList = () => {
               </Grid>
               <Grid item xs={12} sm={4}>
                 <FormControl fullWidth size="small">
+                  <InputLabel id="type-filter-label">Type de matériel</InputLabel>
+                  <Select
+                    labelId="type-filter-label"
+                    value={filters.type}
+                    label="Type de matériel"
+                    onChange={(e) => handleFilterChange('type', e.target.value)}
+                  >
+                    <MenuItem value="">Tous</MenuItem>
+                    <MenuItem value="MATERIEL_PROJET">Matériel projet</MenuItem>
+                    <MenuItem value="MATERIEL_INFORMATIQUE">Matériel informatique</MenuItem>
+                    <MenuItem value="MATERIEL_PEDAGOGIQUE">Matériel pédagogique</MenuItem>
+                    <MenuItem value="CONVIVIALITE">Convivialité</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth size="small">
                   <InputLabel id="department-filter-label">Département</InputLabel>
                   <Select
                     labelId="department-filter-label"
@@ -281,6 +326,7 @@ export const EquipmentList = () => {
           <TableHead>
             <TableRow>
               <TableCell>Matériel</TableCell>
+              <TableCell>Type</TableCell>
               <TableCell>Description/utilisation</TableCell>
               <TableCell>Département hébergeur</TableCell>
               <TableCell>Quantité</TableCell>
@@ -297,6 +343,7 @@ export const EquipmentList = () => {
               .map((item: EquipmentWithRelations) => (
                 <TableRow key={item.id}>
                   <TableCell>{item.name}</TableCell>
+                  <TableCell>{getEquipmentTypeLabel(item.type)}</TableCell>
                   <TableCell>{item.description}</TableCell>
                   <TableCell>{item.department}</TableCell>
                   <TableCell>{item.quantity}</TableCell>

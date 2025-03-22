@@ -36,6 +36,13 @@ export const StudentDashboardPage: React.FC = () => {
   const { data: loanHistory, isLoading: historyLoading } = useQuery({
     queryKey: ['loanHistory'],
     queryFn: loanService.getUserLoanHistory,
+    refetchOnMount: true,
+    onSuccess: (data) => {
+      console.log('Historique des emprunts chargé:', data);
+    },
+    onError: (error) => {
+      console.error('Erreur lors du chargement de l\'historique:', error);
+    }
   });
 
   const getLoanStatusColor = (status: string) => {
@@ -188,16 +195,19 @@ export const StudentDashboardPage: React.FC = () => {
                         </Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
                           <Typography variant="caption" color="text.secondary">
-                            Emprunté: {formatDate(loan.borrowing_date)}
+                            {loan.status === 'EN_ATTENTE' ? 'Demandé' : 'Emprunté'}: {formatDate(loan.borrowing_date)}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            Retourné: {loan.actual_return_date ? formatDate(loan.actual_return_date) : '-'}
+                            {loan.status === 'EN_ATTENTE' 
+                              ? `Retour prévu: ${formatDate(loan.expected_return_date)}`
+                              : `Retourné: ${loan.actual_return_date ? formatDate(loan.actual_return_date) : '-'}`
+                            }
                           </Typography>
                         </Box>
                       </CardContent>
                       <CardActions>
                         <Chip 
-                          label={loan.status} 
+                          label={loan.status === 'EN_ATTENTE' ? 'En attente' : loan.status} 
                           color={getLoanStatusColor(loan.status)} 
                           size="small" 
                         />

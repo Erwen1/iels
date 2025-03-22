@@ -18,7 +18,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { equipmentService } from '../../services/equipment';
 import { locationService } from '../../services/location';
-import type { Equipment, EquipmentStatus } from '../../types/equipment';
+import type { Equipment, EquipmentStatus, EquipmentType } from '../../types/equipment';
 import { useNavigate } from 'react-router-dom';
 
 type EquipmentFormData = Omit<Equipment, 'id' | 'created_at' | 'updated_at'> & {
@@ -30,6 +30,7 @@ interface EquipmentFormProps {
 }
 
 const STATUS_OPTIONS: EquipmentStatus[] = ['DISPONIBLE', 'EMPRUNTE', 'MAINTENANCE', 'HORS_SERVICE'];
+const EQUIPMENT_TYPE_OPTIONS: EquipmentType[] = ['MATERIEL_PROJET', 'MATERIEL_INFORMATIQUE', 'MATERIEL_PEDAGOGIQUE', 'CONVIVIALITE'];
 const BUILDINGS = ['Bâtiment A', 'Bâtiment B', 'Bâtiment C', 'Bâtiment D', 'Bâtiment E'];
 const FLOORS = ['1er étage', '2ème étage', '3ème étage'];
 
@@ -53,6 +54,7 @@ export const EquipmentForm = ({ equipmentId }: EquipmentFormProps) => {
       status: 'DISPONIBLE',
       quantity: 1,
       location: '',
+      type: 'MATERIEL_PROJET',
     }
   });
 
@@ -179,6 +181,32 @@ export const EquipmentForm = ({ equipmentId }: EquipmentFormProps) => {
                 />
               )}
             />
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth error={!!errors.type}>
+              <InputLabel>Type de matériel</InputLabel>
+              <Controller
+                name="type"
+                control={control}
+                rules={{ required: 'Le type de matériel est requis' }}
+                render={({ field }) => (
+                  <Select {...field} label="Type de matériel">
+                    {EQUIPMENT_TYPE_OPTIONS.map((type) => (
+                      <MenuItem key={type} value={type}>
+                        {type === 'MATERIEL_PROJET' ? 'Matériel projet' :
+                         type === 'MATERIEL_INFORMATIQUE' ? 'Matériel informatique' :
+                         type === 'MATERIEL_PEDAGOGIQUE' ? 'Matériel pédagogique' :
+                         'Convivialité'}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
+              />
+              {errors.type && (
+                <FormHelperText>{errors.type.message}</FormHelperText>
+              )}
+            </FormControl>
           </Grid>
 
           <Grid item xs={12}>

@@ -24,19 +24,21 @@ import {
   Email as EmailIcon,
   Security as SecurityIcon,
   Storage as StorageIcon,
+  Save as SaveIcon,
 } from '@mui/icons-material';
+import { useAuth } from '../hooks/useAuth';
+import { EmailTest } from '../components/EmailTest';
+import { UserRole } from '../types/user';
 
 export const SettingsPage = () => {
+  const { user } = useAuth();
+
   const [settings, setSettings] = useState({
     // Notifications
     emailNotifications: true,
     loanReminders: true,
     maintenanceAlerts: true,
     overdueNotifications: true,
-
-    // Email Settings
-    reminderFrequency: 'daily',
-    emailTemplate: 'default',
 
     // System Settings
     language: 'fr',
@@ -74,230 +76,112 @@ export const SettingsPage = () => {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Paramètres
-        </Typography>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Paramètres
+      </Typography>
 
-        <Grid container spacing={3}>
-          {/* Notifications */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <NotificationsIcon sx={{ mr: 1 }} />
-                  <Typography variant="h6">Notifications</Typography>
-                </Box>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.emailNotifications}
-                      onChange={handleChange('emailNotifications')}
-                    />
-                  }
-                  label="Notifications par email"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.loanReminders}
-                      onChange={handleChange('loanReminders')}
-                    />
-                  }
-                  label="Rappels d'emprunts"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.maintenanceAlerts}
-                      onChange={handleChange('maintenanceAlerts')}
-                    />
-                  }
-                  label="Alertes de maintenance"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.overdueNotifications}
-                      onChange={handleChange('overdueNotifications')}
-                    />
-                  }
-                  label="Notifications de retard"
-                />
-              </CardContent>
-            </Card>
-          </Grid>
+      {user?.role === UserRole.ADMIN && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <EmailIcon sx={{ mr: 1 }} />
+            <Typography variant="h5">
+              Configuration des Notifications Email
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Configurez et testez l'envoi des notifications email via Resend.com. Les notifications incluent les demandes d'emprunt,
+            les rappels de retour, et les alertes de maintenance.
+          </Typography>
+          <Divider sx={{ my: 2 }} />
+          <EmailTest />
+        </Paper>
+      )}
 
-          {/* Email Settings */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <EmailIcon sx={{ mr: 1 }} />
-                  <Typography variant="h6">Paramètres Email</Typography>
-                </Box>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Fréquence des rappels</InputLabel>
-                  <Select
-                    value={settings.reminderFrequency}
-                    onChange={handleSelectChange('reminderFrequency')}
-                    label="Fréquence des rappels"
-                  >
-                    <MenuItem value="daily">Quotidien</MenuItem>
-                    <MenuItem value="weekly">Hebdomadaire</MenuItem>
-                    <MenuItem value="biweekly">Bi-hebdomadaire</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth>
-                  <InputLabel>Template d'email</InputLabel>
-                  <Select
-                    value={settings.emailTemplate}
-                    onChange={handleSelectChange('emailTemplate')}
-                    label="Template d'email"
-                  >
-                    <MenuItem value="default">Par défaut</MenuItem>
-                    <MenuItem value="minimal">Minimal</MenuItem>
-                    <MenuItem value="detailed">Détaillé</MenuItem>
-                  </Select>
-                </FormControl>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* System Settings */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <LanguageIcon sx={{ mr: 1 }} />
-                  <Typography variant="h6">Paramètres Système</Typography>
-                </Box>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Langue</InputLabel>
-                  <Select
-                    value={settings.language}
-                    onChange={handleSelectChange('language')}
-                    label="Langue"
-                  >
-                    <MenuItem value="fr">Français</MenuItem>
-                    <MenuItem value="en">English</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Format de date</InputLabel>
-                  <Select
-                    value={settings.dateFormat}
-                    onChange={handleSelectChange('dateFormat')}
-                    label="Format de date"
-                  >
-                    <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
-                    <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
-                    <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth>
-                  <InputLabel>Fuseau horaire</InputLabel>
-                  <Select
-                    value={settings.timeZone}
-                    onChange={handleSelectChange('timeZone')}
-                    label="Fuseau horaire"
-                  >
-                    <MenuItem value="Europe/Paris">Europe/Paris</MenuItem>
-                    <MenuItem value="UTC">UTC</MenuItem>
-                  </Select>
-                </FormControl>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Loan Settings */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <StorageIcon sx={{ mr: 1 }} />
-                  <Typography variant="h6">Paramètres d'Emprunt</Typography>
-                </Box>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="Durée maximale d'emprunt (jours)"
-                  value={settings.maxLoanDuration}
-                  onChange={handleChange('maxLoanDuration')}
-                  sx={{ mb: 2 }}
+      <Grid container spacing={3}>
+        {/* Notification Settings */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <NotificationsIcon sx={{ mr: 1 }} />
+              <Typography variant="h6">
+                Paramètres de Notification
+              </Typography>
+            </Box>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={settings.emailNotifications}
+                  onChange={handleChange('emailNotifications')}
                 />
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="Durée d'emprunt par défaut (jours)"
-                  value={settings.defaultLoanDuration}
-                  onChange={handleChange('defaultLoanDuration')}
-                  sx={{ mb: 2 }}
+              }
+              label="Notifications par email"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={settings.loanReminders}
+                  onChange={handleChange('loanReminders')}
                 />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.allowExtensions}
-                      onChange={handleChange('allowExtensions')}
-                    />
-                  }
-                  label="Autoriser les extensions"
+              }
+              label="Rappels d'emprunt"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={settings.maintenanceAlerts}
+                  onChange={handleChange('maintenanceAlerts')}
                 />
-                {settings.allowExtensions && (
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label="Nombre maximum d'extensions"
-                    value={settings.maxExtensions}
-                    onChange={handleChange('maxExtensions')}
-                    sx={{ mt: 2 }}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Maintenance Settings */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <SecurityIcon sx={{ mr: 1 }} />
-                  <Typography variant="h6">Paramètres de Maintenance</Typography>
-                </Box>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="Intervalle de maintenance (jours)"
-                  value={settings.maintenanceInterval}
-                  onChange={handleChange('maintenanceInterval')}
-                  sx={{ mb: 2 }}
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.autoSchedule}
-                      onChange={handleChange('autoSchedule')}
-                    />
-                  }
-                  label="Planification automatique"
-                />
-              </CardContent>
-            </Card>
-          </Grid>
+              }
+              label="Alertes de maintenance"
+            />
+          </Paper>
         </Grid>
 
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSave}
-            size="large"
-          >
-            Enregistrer les modifications
-          </Button>
-        </Box>
+        {/* System Settings */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <LanguageIcon sx={{ mr: 1 }} />
+              <Typography variant="h6">
+                Paramètres Système
+              </Typography>
+            </Box>
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Langue</InputLabel>
+              <Select
+                value={settings.language}
+                onChange={handleSelectChange('language')}
+                label="Langue"
+              >
+                <MenuItem value="fr">Français</MenuItem>
+                <MenuItem value="en">English</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Format de date</InputLabel>
+              <Select
+                value={settings.dateFormat}
+                onChange={handleSelectChange('dateFormat')}
+                label="Format de date"
+              >
+                <MenuItem value="DD/MM/YYYY">DD/MM/YYYY</MenuItem>
+                <MenuItem value="MM/DD/YYYY">MM/DD/YYYY</MenuItem>
+                <MenuItem value="YYYY-MM-DD">YYYY-MM-DD</MenuItem>
+              </Select>
+            </FormControl>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          startIcon={<SaveIcon />}
+        >
+          Enregistrer les modifications
+        </Button>
       </Box>
     </Container>
   );

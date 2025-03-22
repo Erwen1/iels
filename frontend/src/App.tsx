@@ -28,12 +28,20 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { fr } from 'date-fns/locale';
 import { UserManagementPage } from './pages/admin/UserManagementPage';
-import { InventoryManagementPage } from './pages/admin/InventoryManagementPage';
+import { InventoryPage } from './pages/inventory';
 import { RoleBasedRoute } from './components/auth/RoleBasedRoute';
 import { UserRole } from './services/auth';
+import TestSupabasePage from './pages/TestSupabasePage';
 
-// Create a client
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
 function App() {
   const { setUser, setLoading } = useAuthStore();
@@ -56,16 +64,17 @@ function App() {
   }, [setUser, setLoading]);
 
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
-            <CssBaseline />
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
+          <AuthProvider>
             <Router>
               <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/test-supabase" element={<TestSupabasePage />} />
                 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
@@ -96,22 +105,15 @@ function App() {
                     />
                   } />
                   <Route path="/loans/new" element={<LoanRequestPage />} />
-                  <Route path="/loans" element={<LoanPage />} />
-                  <Route path="/loans/admin" element={
-                    <RoleBasedRoute 
-                      adminComponent={<AdminLoanPage />}
-                      userComponent={<Navigate to="/dashboard" replace />}
-                      teacherComponent={<AdminLoanPage />}
-                      requiredRoles={[UserRole.ADMIN, UserRole.ENSEIGNANT]}
-                    />
-                  } />
+                  <Route path="/loans" element={<AdminLoanPage />} />
+                  <Route path="/loans/admin" element={<Navigate to="/loans" replace />} />
                   <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/inventory" element={
                     <RoleBasedRoute 
-                      adminComponent={<InventoryManagementPage />}
+                      adminComponent={<InventoryPage />}
                       userComponent={<Navigate to="/dashboard" replace />}
-                      teacherComponent={<InventoryManagementPage />}
+                      teacherComponent={<InventoryPage />}
                       requiredRoles={[UserRole.ADMIN, UserRole.ENSEIGNANT]}
                     />
                   } />
@@ -126,10 +128,10 @@ function App() {
                 </Route>
               </Routes>
             </Router>
-          </LocalizationProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+          </AuthProvider>
+        </LocalizationProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

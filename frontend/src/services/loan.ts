@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
 import type { LoanRequest, LoanStatus, Equipment, LoanStatusHistory } from '../types/equipment';
+import { equipmentService } from './equipment';
+import { emailService } from './email';
+import { sendLoanRequestNotification } from './emailService';
 
 interface LoanWithEquipment extends Omit<LoanRequest, 'equipment'> {
   equipment: Pick<Equipment, 'name' | 'id'>;
@@ -33,43 +36,49 @@ interface DurationStat {
 export const loanService = {
   async createLoanRequest(data: Omit<LoanRequest, 'id' | 'created_at' | 'updated_at' | 'status' | 'actual_return_date'> & { terms_accepted?: boolean }): Promise<LoanRequest> {
     try {
-      // Filter out the terms_accepted field as it's not stored in the database
-      const { terms_accepted, ...loanData } = data;
+      const insertData: any = {
+        equipment_id: data.equipment_id,
+        loan_manager_email: data.loan_manager_email,
+        student_email: data.student_email,
+        borrowing_date: data.borrowing_date,
+        expected_return_date: data.expected_return_date,
+        project_description: data.project_description,
+        status: 'PENDING'
+      };
 
-      // Ensure terms are accepted
-      if (!terms_accepted) {
-        throw new Error('Vous devez accepter les conditions d\'emprunt');
-      }
-
-      const { data: loanRequest, error } = await supabase
+      const { data: newLoan, error } = await supabase
         .from('loan_requests')
-        .insert([
-          {
-            ...loanData,
-            status: 'EN_ATTENTE',
-          },
-        ])
-        .select()
+        .insert(insertData)
+        .select('*, equipment:equipment_id(*)')
         .single();
 
       if (error) {
-        console.error('Error creating loan request:', error);
-        throw new Error('Erreur lors de la création de la demande d\'emprunt');
+        throw error;
       }
 
-      // Create initial status history entry
-      await this.createStatusHistoryEntry({
-        loan_request_id: loanRequest.id,
-        previous_status: null,
-        new_status: 'EN_ATTENTE',
-        comment: 'Création de la demande',
-        changed_by: data.loan_manager_email,
-      });
+      // Send email notification to the loan manager
+      if (newLoan) {
+        try {
+          await sendLoanRequestNotification(
+            newLoan.loan_manager_email,
+            {
+              equipmentName: newLoan.equipment?.name || 'Unknown Equipment',
+              borrowingDate: new Date(newLoan.borrowing_date).toLocaleDateString('fr-FR'),
+              returnDate: new Date(newLoan.expected_return_date).toLocaleDateString('fr-FR'),
+              projectDescription: newLoan.project_description,
+              studentEmail: newLoan.student_email
+            }
+          );
+        } catch (emailError) {
+          console.error('Failed to send email notification:', emailError);
+          // Don't throw the error here - we still want to return the created loan
+        }
+      }
 
-      return loanRequest;
+      return newLoan;
     } catch (err) {
       console.error('Error in createLoanRequest:', err);
-      throw new Error('Impossible de créer la demande d\'emprunt');
+      throw err;
     }
   },
 
@@ -305,7 +314,8 @@ export const loanService = {
         throw new Error('Utilisateur non authentifié');
       }
 
-      const { data, error } = await supabase
+      // Utiliser student_email pour la récupération des emprunts de l'étudiant
+      const { data: loansData, error } = await supabase
         .from('loan_requests')
         .select(`
           *,
@@ -316,12 +326,35 @@ export const loanService = {
             description
           )
         `)
-        .eq('loan_manager_email', currentUser.user.email)
+        // Utiliser student_email, car la colonne existe maintenant
+        .eq('student_email', currentUser.user.email)
         .in('status', ['EN_ATTENTE', 'APPROUVE', 'EMPRUNTE'])
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (error) {
+        console.error('Error with student_email query:', error);
+        
+        // Fallback à loan_manager_email pour les anciens enregistrements
+        const { data: oldLoansData, error: oldError } = await supabase
+          .from('loan_requests')
+          .select(`
+            *,
+            equipment (
+              id,
+              name,
+              reference,
+              description
+            )
+          `)
+          .eq('loan_manager_email', currentUser.user.email)
+          .in('status', ['EN_ATTENTE', 'APPROUVE', 'EMPRUNTE'])
+          .order('created_at', { ascending: false });
+          
+        if (oldError) throw oldError;
+        return oldLoansData || [];
+      }
+      
+      return loansData || [];
     } catch (error) {
       console.error('Error fetching user loans:', error);
       return [];
@@ -335,7 +368,10 @@ export const loanService = {
       if (!currentUser || !currentUser.user) {
         throw new Error('Utilisateur non authentifié');
       }
+      
+      console.log('Utilisateur connecté:', currentUser.user.email);
 
+      // Utiliser student_email pour la récupération de l'historique
       const { data, error } = await supabase
         .from('loan_requests')
         .select(`
@@ -346,12 +382,35 @@ export const loanService = {
             reference
           )
         `)
-        .eq('loan_manager_email', currentUser.user.email)
-        .filter('status', 'not.eq', 'EN_ATTENTE')
+        // Utiliser student_email, car la colonne existe maintenant
+        .eq('student_email', currentUser.user.email)
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error with student_email query:', error);
+        
+        // Fallback à loan_manager_email pour les anciens enregistrements
+        const { data: oldData, error: oldError } = await supabase
+          .from('loan_requests')
+          .select(`
+            *,
+            equipment (
+              id,
+              name,
+              reference
+            )
+          `)
+          .eq('loan_manager_email', currentUser.user.email)
+          .order('created_at', { ascending: false })
+          .limit(10);
+          
+        if (oldError) throw oldError;
+        console.log('Données d\'historique récupérées (fallback):', oldData);
+        return oldData || [];
+      }
+      
+      console.log('Données d\'historique récupérées:', data);
       return data || [];
     } catch (error) {
       console.error('Error fetching user loan history:', error);
@@ -368,24 +427,50 @@ export const loanService = {
   async getDepartmentLoans(departmentId: string, filter: 'active' | 'pending' | 'overdue' = 'active') {
     try {
       // Construire la requête de base
-      let query = supabase
-        .from('loan_requests')
-        .select(`
-          *,
-          equipment (
-            id,
-            name,
-            reference,
-            department_id
-          ),
-          users!loan_requests_loan_manager_email_fkey (
-            id,
-            full_name,
-            email,
-            department_id
-          )
-        `)
-        .eq('equipment.department_id', departmentId);
+      let query;
+      
+      if (!departmentId) {
+        console.warn('Département ID non fourni pour les emprunts');
+        // Si pas de département spécifique, récupérer tous les prêts
+        query = supabase
+          .from('loan_requests')
+          .select(`
+            *,
+            equipment (*),
+            users!loan_requests_loan_manager_email_fkey (
+              id,
+              full_name,
+              email,
+              department_id
+            )
+          `);
+          
+        // Log pour débogage
+        console.log('Fetching all loans (no department filter)');
+      } else {
+        // Requête pour un département spécifique
+        query = supabase
+          .from('loan_requests')
+          .select(`
+            *,
+            equipment!loan_requests_equipment_id_fkey (
+              id,
+              name,
+              reference,
+              department_id
+            ),
+            users!loan_requests_loan_manager_email_fkey (
+              id,
+              full_name,
+              email,
+              department_id
+            )
+          `)
+          .eq('equipment.department_id', departmentId);
+          
+        // Log pour débogage
+        console.log(`Fetching loans for department ${departmentId}`);
+      }
 
       // Ajouter le filtre approprié
       if (filter === 'active') {
@@ -409,10 +494,13 @@ export const loanService = {
         throw new Error('Erreur lors de la récupération des emprunts du département');
       }
 
+      // Log pour débogage
+      console.log(`Found ${data?.length || 0} loans for filter: ${filter}`);
+
       // Formater les données pour l'affichage
       return data.map((loan: any) => ({
         ...loan,
-        student_name: loan.users?.full_name || loan.loan_manager_email,
+        student_name: loan.student_email || loan.users?.full_name || loan.loan_manager_email,
       })) || [];
     } catch (err) {
       console.error('Error in getDepartmentLoans:', err);

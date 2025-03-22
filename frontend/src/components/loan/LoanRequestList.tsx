@@ -22,6 +22,7 @@ import UndoIcon from '@mui/icons-material/Undo';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { loanService } from '../../services/loan';
 import type { LoanRequest, LoanStatus } from '../../types/equipment';
+import { useAuth } from '../../hooks/useAuth';
 
 interface LoanRequestListProps {
   equipmentId?: string;
@@ -63,6 +64,8 @@ const getStatusLabel = (status: LoanStatus): string => {
 
 export function LoanRequestList({ equipmentId }: LoanRequestListProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdminOrTeacher = user?.role === 'ADMIN' || user?.role === 'ENSEIGNANT';
 
   const { data: loanRequests = [], isLoading } = useQuery({
     queryKey: ['loanRequests', equipmentId],
@@ -91,6 +94,7 @@ export function LoanRequestList({ equipmentId }: LoanRequestListProps) {
   });
 
   const handleStatusUpdate = (loanId: string, status: LoanStatus) => {
+    if (!isAdminOrTeacher) return;
     updateStatusMutation.mutate({ loanId, status });
   };
 
@@ -113,7 +117,6 @@ export function LoanRequestList({ equipmentId }: LoanRequestListProps) {
             <TableCell>Date d'emprunt</TableCell>
             <TableCell>Date de retour</TableCell>
             <TableCell>Statut</TableCell>
-            <TableCell>Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -138,58 +141,6 @@ export function LoanRequestList({ equipmentId }: LoanRequestListProps) {
                   color={getStatusColor(request.status)}
                   size="small"
                 />
-              </TableCell>
-              <TableCell>
-                <Stack direction="row" spacing={1}>
-                  {request.status === 'EN_ATTENTE' && (
-                    <>
-                      <Tooltip title="Approuver">
-                        <IconButton
-                          size="small"
-                          color="success"
-                          onClick={() =>
-                            handleStatusUpdate(request.id, 'APPROUVE')
-                          }
-                        >
-                          <CheckIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Refuser">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleStatusUpdate(request.id, 'REFUSE')}
-                        >
-                          <CloseIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </>
-                  )}
-                  {request.status === 'APPROUVE' && (
-                    <Tooltip title="Marquer comme emprunté">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() =>
-                          handleStatusUpdate(request.id, 'EMPRUNTE')
-                        }
-                      >
-                        Emprunté
-                      </Button>
-                    </Tooltip>
-                  )}
-                  {request.status === 'EMPRUNTE' && (
-                    <Tooltip title="Marquer comme retourné">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleStatusUpdate(request.id, 'RETOURNE')}
-                      >
-                        <UndoIcon />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </Stack>
               </TableCell>
             </TableRow>
           ))}

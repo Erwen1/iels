@@ -95,7 +95,7 @@ export const equipmentService = {
       const knownColumns = [
         'reference', 'name', 'description', 'department',
         'quantity', 'location_id', 'equipment_manager_email', 
-        'status', 'location'
+        'status', 'location', 'type'
       ];
       
       // Filtrer les propriétés pour ne garder que celles qui existent dans la base de données
@@ -315,9 +315,42 @@ export const equipmentService = {
 
   async getDepartmentEquipmentStats(departmentId: string) {
     try {
+      // Si departmentId est vide, retourner des statistiques vides
+      if (!departmentId) {
+        console.warn('Département ID non fourni pour les statistiques');
+        
+        // Récupérer tous les équipements pour un enseignant sans département assigné
+        const { data: allEquipment, error: allError } = await supabase
+          .from('equipment')
+          .select('*');
+        
+        if (allError) {
+          throw new Error('Erreur lors de la récupération des équipements');
+        }
+        
+        // Calculer les statistiques sur tous les équipements
+        const totalCount = allEquipment?.length || 0;
+        const availableCount = allEquipment?.filter((item: Equipment) => item.status === 'DISPONIBLE').length || 0;
+        const borrowedCount = allEquipment?.filter((item: Equipment) => item.status === 'EMPRUNTE').length || 0;
+        const maintenanceCount = allEquipment?.filter((item: Equipment) => item.status === 'MAINTENANCE').length || 0;
+        const availablePercentage = totalCount > 0 ? Math.round((availableCount / totalCount) * 100) : 0;
+        
+        return {
+          departmentId: '',
+          departmentName: 'Tous les départements',
+          totalCount,
+          availableCount,
+          borrowedCount,
+          maintenanceCount,
+          availablePercentage,
+          overdueCount: 0,
+        };
+      }
+
+      // Requête normale pour un département spécifique
       const { data: equipment, error } = await supabase
         .from('equipment')
-        .select('*, department:department_id(*)')
+        .select('*, department:departments!equipment_department_id_fkey(*)')
         .eq('department_id', departmentId);
 
       if (error) {
@@ -325,16 +358,19 @@ export const equipmentService = {
         throw new Error('Erreur lors de la récupération des statistiques du département');
       }
 
+      // Log pour débogage
+      console.log(`Fetched ${equipment?.length || 0} equipment items for department ${departmentId}`);
+
       // Obtenir les informations sur le département
       const departmentName = equipment && equipment.length > 0 && equipment[0].department 
         ? equipment[0].department.name 
         : 'Inconnu';
 
       // Calculer les statistiques
-      const totalCount = equipment.length;
-      const availableCount = equipment.filter((item: Equipment) => item.status === 'DISPONIBLE').length;
-      const borrowedCount = equipment.filter((item: Equipment) => item.status === 'EMPRUNTE').length;
-      const maintenanceCount = equipment.filter((item: Equipment) => item.status === 'MAINTENANCE').length;
+      const totalCount = equipment?.length || 0;
+      const availableCount = equipment?.filter((item: Equipment) => item.status === 'DISPONIBLE').length || 0;
+      const borrowedCount = equipment?.filter((item: Equipment) => item.status === 'EMPRUNTE').length || 0;
+      const maintenanceCount = equipment?.filter((item: Equipment) => item.status === 'MAINTENANCE').length || 0;
 
       // Calculer le pourcentage d'équipements disponibles
       const availablePercentage = totalCount > 0 ? Math.round((availableCount / totalCount) * 100) : 0;

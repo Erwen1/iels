@@ -1,5 +1,7 @@
 export type EquipmentStatus = 'DISPONIBLE' | 'EMPRUNTE' | 'MAINTENANCE' | 'HORS_SERVICE';
 
+export type EquipmentType = 'MATERIEL_PROJET' | 'MATERIEL_INFORMATIQUE' | 'MATERIEL_PEDAGOGIQUE' | 'CONVIVIALITE';
+
 export interface Equipment {
   id: string;
   reference: string;
@@ -11,6 +13,7 @@ export interface Equipment {
   location?: string;
   equipment_manager_email: string;
   status: EquipmentStatus;
+  type: EquipmentType;
   loan_requests?: LoanRequest[];
   maintenance_records?: MaintenanceRecord[];
   created_at: string;
@@ -52,6 +55,7 @@ export interface LoanRequest {
   equipment?: Equipment;
   project_description: string;
   loan_manager_email: string;
+  student_email: string;
   borrowing_date: string;
   expected_return_date: string;
   actual_return_date?: string;

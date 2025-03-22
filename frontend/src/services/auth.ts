@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '../lib/supabase';
 import type { LoginCredentials, RegisterCredentials, AuthError } from '../types/auth';
 import { userService } from './user';
 
